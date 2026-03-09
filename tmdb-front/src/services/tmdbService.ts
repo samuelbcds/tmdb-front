@@ -30,6 +30,18 @@ export interface MovieDetails extends Movie {
   tagline: string;
 }
 
+export interface MovieFiltersParams {
+  year?: number;
+  genre?: string;
+}
+
+interface Genre {
+  id: number;
+  name: string;
+}
+
+let cachedGenres: Genre[] | null = null;
+
 
 export const getPosterUrl = (
   posterPath: string | null,
@@ -45,14 +57,68 @@ export const getPosterUrl = (
   return `https://image.tmdb.org/t/p/${size}${posterPath}`;
 };
 
+const normalizeText = (value: string): string => value.trim().toLowerCase();
+
+const getGenres = async (): Promise<Genre[]> => {
+  if (cachedGenres) {
+    return cachedGenres;
+  }
+
+  const response = await tmdbApi.get<{ genres: Genre[] }>('/genre/movie/list', {
+    params: {
+      language: 'pt-BR',
+    },
+  });
+
+  cachedGenres = response.data.genres || [];
+  return cachedGenres;
+};
+
+const resolveGenreId = async (genreName?: string): Promise<number | null> => {
+  if (!genreName?.trim()) {
+    return null;
+  }
+
+  const normalizedGenre = normalizeText(genreName);
+  const genres = await getGenres();
+
+  const exactMatch = genres.find((genre) => normalizeText(genre.name) === normalizedGenre);
+  if (exactMatch) {
+    return exactMatch.id;
+  }
+
+  const partialMatch = genres.find((genre) => normalizeText(genre.name).includes(normalizedGenre));
+  if (partialMatch) {
+    return partialMatch.id;
+  }
+
+  return -1;
+};
+
+const capTotalPages = (data: MovieSearchResponse): MovieSearchResponse => ({
+  ...data,
+  total_pages: Math.min(data.total_pages, 500),
+});
+
 export const searchMovies = async (
   query: string,
-  page: number = 1
+  page: number = 1,
+  filters: MovieFiltersParams = {}
 ): Promise<MovieSearchResponse> => {
   try {
     if (!query.trim()) {
       return {
         page: 1,
+        results: [],
+        total_pages: 0,
+        total_results: 0,
+      };
+    }
+
+    const genreId = await resolveGenreId(filters.genre);
+    if (genreId === -1) {
+      return {
+        page,
         results: [],
         total_pages: 0,
         total_results: 0,
@@ -65,12 +131,19 @@ export const searchMovies = async (
         page,
         include_adult: false,
         language: 'pt-BR',
+        ...(filters.year ? { primary_release_year: filters.year } : {}),
       },
     });
-    const data = response.data;
+
+    const data = capTotalPages(response.data);
+
+    if (!genreId) {
+      return data;
+    }
+
     return {
       ...data,
-      total_pages: Math.min(data.total_pages, 500),
+      results: data.results.filter((movie) => movie.genre_ids.includes(genreId)),
     };
   } catch (error: any) {
     console.error('Error searching movies:', error);
@@ -79,19 +152,44 @@ export const searchMovies = async (
 };
 
 
-export const getPopularMovies = async (page: number = 1): Promise<MovieSearchResponse> => {
+export const getPopularMovies = async (
+  page: number = 1,
+  filters: MovieFiltersParams = {}
+): Promise<MovieSearchResponse> => {
   try {
+    const genreId = await resolveGenreId(filters.genre);
+    if (genreId === -1) {
+      return {
+        page,
+        results: [],
+        total_pages: 0,
+        total_results: 0,
+      };
+    }
+
+    if (genreId || filters.year) {
+      const discoverResponse = await tmdbApi.get<MovieSearchResponse>('/discover/movie', {
+        params: {
+          page,
+          language: 'pt-BR',
+          include_adult: false,
+          sort_by: 'popularity.desc',
+          ...(filters.year ? { primary_release_year: filters.year } : {}),
+          ...(genreId ? { with_genres: genreId } : {}),
+        },
+      });
+
+      return capTotalPages(discoverResponse.data);
+    }
+
     const response = await tmdbApi.get<MovieSearchResponse>('/movie/popular', {
       params: {
         page,
         language: 'pt-BR',
       },
     });
-    const data = response.data;
-    return {
-      ...data,
-      total_pages: Math.min(data.total_pages, 500),
-    };
+
+    return capTotalPages(response.data);
   } catch (error: any) {
     console.error('Error fetching popular movies:', error);
     throw new Error(

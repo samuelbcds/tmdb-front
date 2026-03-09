@@ -5,6 +5,7 @@ export interface BackendMovieDetails {
   id: number;
   title: string;
   synopsis?: string | null;
+  genre?: string | null;
   release_date?: string | null;
   rating?: number | null;
   imgUrl?: string | null;
@@ -16,6 +17,11 @@ export interface MovieDetailsFromBackend extends MovieDetails {
 }
 
 function mapBackendMovieToMovieDetails(movie: BackendMovieDetails): MovieDetailsFromBackend {
+  const genreNames = (movie.genre || '')
+    .split(',')
+    .map((genre) => genre.trim())
+    .filter(Boolean);
+
   return {
     id: movie.id,
     title: movie.title,
@@ -31,7 +37,10 @@ function mapBackendMovieToMovieDetails(movie: BackendMovieDetails): MovieDetails
     genre_ids: [],
     original_language: 'pt-BR',
     video: false,
-    genres: [],
+    genres: genreNames.map((name, index) => ({
+      id: index + 1,
+      name,
+    })),
     runtime: 0,
     status: 'released',
     tagline: '',
@@ -64,10 +73,16 @@ export const saveRatedMovie = async (
   const formattedDate = movie.release_date || null;
   const posterUrl = movie.poster_path ? getPosterUrl(movie.poster_path, 'w500') : null;
   
+  const hasGenres = 'genres' in movie && Array.isArray(movie.genres);
+  const serializedGenres = hasGenres
+    ? movie.genres.map((genre) => genre.name.trim()).filter(Boolean).join(', ')
+    : null;
+
   const payload = {
     title: movie.title,
     release_date: formattedDate,
     synopsis: movie.overview,
+    genre: serializedGenres,
     rating: movie.vote_average, // Rating do TMDB (0-10)
     imgUrl: posterUrl,
     roster: null,

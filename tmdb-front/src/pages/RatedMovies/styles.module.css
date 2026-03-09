@@ -90,6 +90,16 @@
   margin: 0 0 var(--spacing-xl) 0;
 }
 
+.resultsInfo {
+  font-family: var(--font-family-secondary);
+  font-size: var(--font-size-b1);
+  color: var(--color-neutral-600);
+}
+
+.resultsInfo strong {
+  color: var(--color-primary-700);
+}
+
 .loadingState {
   text-align: center;
   padding: var(--spacing-3xl);

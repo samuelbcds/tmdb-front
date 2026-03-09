@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { searchMovies, getPopularMovies, type Movie } from '../../services/tmdbService';
 import { useDebounce } from '../../hooks/useDebounce';
-import { MovieGrid, PageHeader, Pagination, SearchBar } from '../../components';
+import { MovieFilters, MovieGrid, PageHeader, Pagination, SearchBar } from '../../components';
 import styles from './styles.module.css';
 
 export default function Home() {
@@ -11,6 +11,8 @@ export default function Home() {
   const navigate = useNavigate();
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
+  const [genreFilter, setGenreFilter] = useState('');
   const [movies, setMovies] = useState<Movie[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
@@ -20,6 +22,7 @@ export default function Home() {
   const [isSearchMode, setIsSearchMode] = useState(false);
 
   const debouncedSearchQuery = useDebounce(searchQuery, 500);
+  const debouncedGenreFilter = useDebounce(genreFilter, 400);
 
   const fetchMovies = useCallback(async (query: string, page: number) => {
     setLoading(true);
@@ -27,14 +30,30 @@ export default function Home() {
 
     try {
       let response;
-      
+
+      const normalizedYear = yearFilter.trim();
+      const parsedYear = normalizedYear.length === 4 ? Number(normalizedYear) : undefined;
+
+      if (parsedYear !== undefined && (parsedYear < 1800 || parsedYear > 2100)) {
+        setError('Ano invalido. Use um valor entre 1800 e 2100.');
+        setMovies([]);
+        setTotalPages(0);
+        setTotalResults(0);
+        return;
+      }
+
+      const filters = {
+        year: parsedYear,
+        genre: debouncedGenreFilter.trim() || undefined,
+      };
+
       if (query.trim()) {
-        // Search mode
-        response = await searchMovies(query, page);
+        // Search mode (TMDB search endpoint)
+        response = await searchMovies(query, page, filters);
         setIsSearchMode(true);
       } else {
-        // Popular movies mode
-        response = await getPopularMovies(page);
+        // Popular mode with optional TMDB discover filters
+        response = await getPopularMovies(page, filters);
         setIsSearchMode(false);
       }
 
@@ -49,12 +68,15 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [debouncedGenreFilter, yearFilter]);
 
   useEffect(() => {
-    setCurrentPage(1); 
-    fetchMovies(debouncedSearchQuery, 1);
-  }, [debouncedSearchQuery, fetchMovies]);
+    setCurrentPage(1);
+  }, [debouncedSearchQuery, debouncedGenreFilter, yearFilter]);
+
+  useEffect(() => {
+    fetchMovies(debouncedSearchQuery, currentPage);
+  }, [currentPage, debouncedSearchQuery, fetchMovies]);
 
   const handlePageChange = (newPage: number) => {
     if (newPage < 1 || newPage > totalPages) return;
@@ -94,13 +116,20 @@ export default function Home() {
           <section className={styles.searchSection}>
             <h1 className={styles.mainTitle}>Buscar Filmes</h1>
             <p className={styles.mainSubtitle}>
-              Pesquise por título ou navegue pelos filmes populares
+              Pesquise por titulo e refine por ano e genero
             </p>
             
             <SearchBar
               value={searchQuery}
               onChange={setSearchQuery}
               onClear={() => setSearchQuery('')}
+            />
+
+            <MovieFilters
+              yearValue={yearFilter}
+              genreValue={genreFilter}
+              onYearChange={setYearFilter}
+              onGenreChange={setGenreFilter}
             />
 
             {/* Results info */}
@@ -112,7 +141,11 @@ export default function Home() {
                     {searchQuery && ` para "${searchQuery}"`}
                   </p>
                 ) : (
-                  <p>Mostrando filmes populares</p>
+                  <p>
+                    {yearFilter || genreFilter
+                      ? `Filmes populares filtrados (${totalResults})`
+                      : 'Mostrando filmes populares'}
+                  </p>
                 )}
               </div>
             )}
@@ -157,7 +190,7 @@ export default function Home() {
           )}
 
           {/* Empty state */}
-          {!loading && !error && movies.length === 0 && searchQuery && (
+          {!loading && !error && movies.length === 0 && (searchQuery || yearFilter || genreFilter) && (
             <div className={styles.emptyState}>
               <div className={styles.emptyIcon}>🎬</div>
               <h3>Nenhum filme encontrado</h3>

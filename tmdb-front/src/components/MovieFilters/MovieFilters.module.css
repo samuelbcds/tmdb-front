@@ -1,0 +1,48 @@
+.filtersRow {
+  width: min(560px, 100%);
+  margin: 0 auto var(--spacing-md);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-sm);
+}
+
+.filterControl {
+  text-align: left;
+}
+
+.filterLabel {
+  display: block;
+  font-family: var(--font-family-secondary);
+  font-size: var(--font-size-c1);
+  color: var(--color-neutral-700);
+  margin-bottom: 4px;
+}
+
+.filterInput {
+  width: 90%;
+  font-family: var(--font-family-secondary);
+  font-size: var(--font-size-s2);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm) var(--spacing-sm);
+  background: var(--color-neutral-000);
+  color: var(--color-neutral-800);
+  box-shadow: var(--shadow-dark) ;
+  transition: all 0.3s ease;
+}
+
+.filterInput:focus {
+  box-shadow: 0 8px 24px rgba(100, 204, 197, 0.3);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.filterInput::placeholder {
+  color: var(--color-neutral-600);
+}
+
+@media (max-width: 480px) {
+  .filtersRow {
+    grid-template-columns: 1fr;
+  }
+}

@@ -5,6 +5,7 @@ export interface MovieFromDB {
   title: string;
   release_date: string | null;
   synopsis: string | null;
+  genre: string | null;
   rating: number | null; // Rating do TMDB (0-10)
   imgUrl: string | null;
   roster: string | null;
@@ -24,6 +25,19 @@ interface GetMoviesResponse {
     has_next: boolean;
     has_prev: boolean;
   };
+}
+
+export interface GetRatedMoviesResponse {
+  movies: Movie[];
+  pagination: GetMoviesResponse['pagination'];
+}
+
+export interface GetRatedMoviesParams {
+  search?: string;
+  year?: number;
+  genre?: string;
+  page?: number;
+  per_page?: number;
 }
 
 
@@ -47,12 +61,24 @@ function movieFromDBToMovie(dbMovie: MovieFromDB): Movie {
 }
 
 
-export async function getRatedMovies(): Promise<Movie[]> {
+export async function getRatedMovies(
+  params: GetRatedMoviesParams = {}
+): Promise<GetRatedMoviesResponse> {
   try {
-    const { data } = await api.get<GetMoviesResponse>('/movies');
-    
-    const movies = data.movies || [];
-    return movies.map(movieFromDBToMovie);
+    const { data } = await api.get<GetMoviesResponse>('/movies', {
+      params: {
+        ...(params.search ? { search: params.search } : {}),
+        ...(params.year ? { year: params.year } : {}),
+        ...(params.genre ? { genre: params.genre } : {}),
+        ...(params.page ? { page: params.page } : {}),
+        ...(params.per_page ? { per_page: params.per_page } : {}),
+      },
+    });
+
+    return {
+      ...data,
+      movies: (data.movies || []).map(movieFromDBToMovie),
+    };
   } catch (error) {
     console.error('Erro ao buscar filmes avaliados:', error);
     throw error;
@@ -62,7 +88,11 @@ export async function getRatedMovies(): Promise<Movie[]> {
 
 export async function getMovieRating(movieId: number): Promise<number | null> {
   try {
-    const { data } = await api.get<GetMoviesResponse>('/movies');
+    const { data } = await api.get<GetMoviesResponse>('/movies', {
+      params: {
+        per_page: 100,
+      },
+    });
     const movie = data.movies.find((m) => m.id === movieId);
     
     return movie?.rating_user ?? null;
