@@ -32,7 +32,7 @@ function normalizeUserResponse(data: any): User {
 export const userService = {
   
   async getMe(): Promise<User> {
-    const { data } = await api.get('/me');
+    const { data } = await api.get('/users/me');
     return normalizeUserResponse(data);
   },
 
