@@ -23,6 +23,7 @@ export function SearchBar({
           <SearchIcon style={{width: '20px', height:'20px'}} />
         </span>
         <input
+          name='search'
           type="text"
           className={styles.searchInput}
           placeholder={placeholder}
